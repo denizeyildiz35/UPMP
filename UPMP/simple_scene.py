@@ -148,6 +148,11 @@ class SimpleVTKScene:
     def _build_access_arrow_actor(self, pending_arrows):
         if not pending_arrows:
             return None
+        try:
+            from .engine_3d.scene.vtk_scene import build_access_arrow_actor
+            return build_access_arrow_actor(pending_arrows)
+        except Exception:
+            pass
         from vtkmodules.vtkCommonCore import vtkPoints
         from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData, vtkTriangle
         from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper

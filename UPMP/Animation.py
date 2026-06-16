@@ -7,7 +7,6 @@ def _load_main_route_bridge():
             build_route_overlay_from_plan,
             rebuild_step_plans_like_pathfinding_deneme,
         )
-
         return rebuild_step_plans_like_pathfinding_deneme, build_route_overlay_from_plan
     except ImportError:
         return None, None
@@ -1404,8 +1403,8 @@ def Animation(ida_result=None, depo=None, lanes=None, lane_matrix=None, **kwargs
         ]
 
         try:
-            from .route_animation import RouteAnimation
             from .animation_bridge import apply_time_params, build_anim_moves_from_plans
+            from .route_animation import RouteAnimation
         except Exception as exc:
             anim_phase.setText(f"Could not load animation module: {exc}")
             return

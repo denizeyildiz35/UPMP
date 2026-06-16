@@ -1,4 +1,4 @@
-﻿import random
+import random
 from typing import Optional, Tuple
 
 
@@ -25,27 +25,7 @@ def _ensure_lane_len2(lane, dx, dy, inside_fn):
     return ln
 
 
-def validate_route(
-    route,
-    node_frozen,
-):
-    """
-    Bağımsız rota doğrulama fonksiyonu.
-
-    Kontroller:
-    1) Rota en az 2 hücre olmalı.
-    2) Tüm hücreler matris içinde olmalı.
-    3) Stepwise olmalı (ardışık hücreler Manhattan mesafesi 1).
-    4) Dolu hücrelerden geçmemeli.
-
-    Dönen yapı:
-    {
-      "ok": bool,
-      "reason": str,
-      "at": (x, y) | None,
-      "index": int | None,
-    }
-    """
+def validate_route(route, node_frozen):
     if not node_frozen:
         return {"ok": False, "reason": "empty_grid", "at": None, "index": None}
 
@@ -76,15 +56,6 @@ def validate_route(
         except Exception:
             return False
 
-    def _blocked(c):
-        cell = node_frozen[int(c[0])][int(c[1])]
-        if isinstance(cell, (list, tuple)):
-            return any(int(v) != 0 for v in cell)
-        try:
-            return int(cell) != 0
-        except Exception:
-            return False
-
     for i, c in enumerate(cells):
         if not _inside(c):
             return {"ok": False, "reason": "out_of_bounds", "at": c, "index": i}
@@ -98,42 +69,25 @@ def validate_route(
     return {"ok": True, "reason": "ok", "at": None, "index": None}
 
 
-def same(
-    vehicle_cell: Optional[Cell],
-    from_cell: Cell,
-    to_cell: Cell,
-    from_access_dir: str,
-    to_access_dir: str,
-    node_frozen=None,
-    ignore_to_block_for_egress: bool = False,
-):
-    # Bu parametreler same'in minimal cekirdek versiyonunda kullanilmiyor;
-    # imza uyumlulugu icin korunuyor.
+# Route case implementations are copied from Engine to preserve behavior.
+# They are intentionally kept as-is to avoid changing animation/path output.
+def same(vehicle_cell: Optional[Cell], from_cell: Cell, to_cell: Cell, from_access_dir: str, to_access_dir: str, node_frozen=None, ignore_to_block_for_egress: bool = False):
     _ = (vehicle_cell, ignore_to_block_for_egress)
-
-    # Padded node_frozen zorunlu.
     if not node_frozen:
         return None
     w = len(node_frozen)
     l = len(node_frozen[0]) if w > 0 else 0
     if w <= 0 or l <= 0:
         return None
-
-    # Erişim yönlerini vektöre çevir.
     dirs = {"N": (0, 1), "S": (0, -1), "E": (1, 0), "W": (-1, 0)}
     fdx, fdy = dirs.get(str(from_access_dir or "").strip().upper(), (0, 0))
     tdx, tdy = dirs.get(str(to_access_dir or "").strip().upper(), (0, 0))
-    if (fdx, fdy) == (0, 0) or (tdx, tdy) == (0, 0):
-        return None
-    # Same case sadece aynı yönlerde çalışır.
-    if (fdx, fdy) != (tdx, tdy):
+    if (fdx, fdy) == (0, 0) or (tdx, tdy) == (0, 0) or (fdx, fdy) != (tdx, tdy):
         return None
 
-    # Matris sınır kontrolü.
     def _inside(c):
         return 0 <= int(c[0]) < w and 0 <= int(c[1]) < l
 
-    # Hücrenin dolu/engel olup olmadığını kontrol et.
     def _blocked(c):
         if not _inside(c):
             return True
@@ -145,7 +99,6 @@ def same(
         except Exception:
             return False
 
-    # Start noktasından verilen yönde, matris dışına çıkana kadar düz hat üret.
     def _ray_from(start, dx, dy):
         out = []
         cur = (int(start[0]), int(start[1]))
@@ -154,15 +107,10 @@ def same(
             cur = (int(cur[0]) + int(dx), int(cur[1]) + int(dy))
         return out
 
-    # From hücresinin önündeki 3'lü bandı üret.
-    # seed_shift arttıkça band erişim yönünde ileri taşınır.
     def _make_from_front_3(seed_shift):
         out = []
         for k in (1, 2, 3):
-            c = (
-                int(from_cell[0]) + int(fdx) * (int(seed_shift) + k),
-                int(from_cell[1]) + int(fdy) * (int(seed_shift) + k),
-            )
+            c = (int(from_cell[0]) + int(fdx) * (int(seed_shift) + k), int(from_cell[1]) + int(fdy) * (int(seed_shift) + k))
             if not _inside(c):
                 return []
             out.append(c)
@@ -179,7 +127,6 @@ def same(
             out.append(cur)
         return out
 
-    # Başlangıçta from bandı + to erişim hattı.
     from_seed = 0
     band = _make_from_front_3(from_seed)
     from_front_3_initial = list(band)
@@ -193,12 +140,12 @@ def same(
     if not band or not to_access_line or len(to_front_3) != 3:
         return None
 
-    # To hattına hizalama:
-    # N/S için x ekseninde, E/W için y ekseninde hizalanır.
     if (fdx, fdy) in ((0, 1), (0, -1)):
         target_axis = int(to_cell[0])
+
         def _aligned(b):
             return len(b) == 3 and all(int(c[0]) == target_axis for c in b)
+
         def _side_step(b):
             cx = int(b[1][0])
             if cx == target_axis:
@@ -206,21 +153,17 @@ def same(
             return (1, 0) if target_axis > cx else (-1, 0)
     else:
         target_axis = int(to_cell[1])
+
         def _aligned(b):
             return len(b) == 3 and all(int(c[1]) == target_axis for c in b)
+
         def _side_step(b):
             cy = int(b[1][1])
             if cy == target_axis:
                 return (0, 0)
             return (0, 1) if target_axis > cy else (0, -1)
 
-    # İzlenen band geçmişi (debug/izleme için).
     history = [list(band)]
-
-    # Minimal çekirdek döngü:
-    # - Band hizalıysa bitir.
-    # - Değilse yan kaydır.
-    # - Yan kaydırma engel/sınır ise bandı erişim yönünde 1 ileri itip tekrar dene.
     while True:
         if _aligned(band):
             lanes = [[], [], []]
@@ -233,17 +176,11 @@ def same(
             for i in range(3):
                 if not lanes[i]:
                     return None
-                pre = _bridge_along_dir(
-                    (int(from_front_3_initial[i][0]), int(from_front_3_initial[i][1])),
-                    (int(history[0][i][0]), int(history[0][i][1])),
-                    int(fdx),
-                    int(fdy),
-                )
+                pre = _bridge_along_dir((int(from_front_3_initial[i][0]), int(from_front_3_initial[i][1])), (int(history[0][i][0]), int(history[0][i][1])), int(fdx), int(fdy))
                 if not pre:
                     return None
                 lanes[i] = _compress_lane(list(pre) + list(lanes[i]))
 
-            # Hizalama bulunduğunda, her lane'i to önündeki 3 hücreye kadar tamamla.
             completion_failed = False
             for i in range(3):
                 if not lanes[i]:
@@ -288,7 +225,6 @@ def same(
 
         sdx, sdy = _side_step(band)
         shifted = [(int(c[0]) + int(sdx), int(c[1]) + int(sdy)) for c in band]
-
         if not all(_inside(c) for c in shifted) or any(_blocked(c) for c in shifted):
             from_seed += 1
             band = _make_from_front_3(from_seed)
@@ -296,7 +232,6 @@ def same(
                 return None
             history = [list(band)]
             continue
-
         band = shifted
         history.append(list(band))
 
@@ -385,34 +320,6 @@ def corner(
             lines.append(ln)
         return lines
 
-    def _build_intersecting_line(start, inter, pre_dx, pre_dy, post_dx, post_dy):
-        # Kesişime kadar ters yön, kesişimden sonra normal yön.
-        # pre: start -> inter (ters yön rayı üstünden)
-        pre_all = _ray_from(start, pre_dx, pre_dy)
-        out = []
-        found = False
-        for c in pre_all:
-            out.append(c)
-            if (int(c[0]), int(c[1])) == (int(inter[0]), int(inter[1])):
-                found = True
-                break
-        if not found:
-            return []
-
-        # post: inter -> dışa normal yön
-        cur = (int(inter[0]) + int(post_dx), int(inter[1]) + int(post_dy))
-        while _inside(cur):
-            out.append(cur)
-            cur = (int(cur[0]) + int(post_dx), int(cur[1]) + int(post_dy))
-        return out
-
-    def _lane_target_for_move(start, ref_inter, move_dx, move_dy):
-        # Hareket eksenine gore lane'in sabit koordinatini koru,
-        # diger koordinati ref kesisimden al.
-        if int(move_dx) != 0:
-            return (int(ref_inter[0]), int(start[1]))
-        return (int(start[0]), int(ref_inter[1]))
-
     def _bridge_along_dir(start, end, dx, dy):
         out = [(int(start[0]), int(start[1]))]
         cur = (int(start[0]), int(start[1]))
@@ -439,105 +346,6 @@ def corner(
             break
     had_intersection = intersection_cell is not None
 
-    # Senaryo-1: Hatlar kesisiyor.
-    if intersection_cell is not None and False:
-        if len(from_front_3) < 3 or len(to_front_3) < 3:
-            return None
-
-        max_shift = max(1, w + l)
-        # Faz-1 (kesisim oncesi): shift + pre/post kopruler
-        pre_candidates = []
-        for d in range(0, max_shift + 1):
-            for sf in range(d, -1, -1):
-                st = d - sf
-
-                from_shifted = _shift_points(from_front_3, fdx, fdy, sf)
-                to_shifted = _shift_points(to_front_3, tdx, tdy, st)
-                if len(from_shifted) != 3 or len(to_shifted) != 3:
-                    continue
-                if any(_blocked(c) for c in from_shifted) or any(_blocked(c) for c in to_shifted):
-                    continue
-
-                pre_lanes = []
-                post_lanes = []
-                ok = True
-                for i in range(3):
-                    pre = _bridge_along_dir(from_front_3[i], from_shifted[i], int(fdx), int(fdy))
-                    post = _bridge_along_dir(to_shifted[i], to_front_3[i], -int(tdx), -int(tdy))
-                    if not pre or not post:
-                        ok = False
-                        break
-                    pre_lanes.append(pre)
-                    post_lanes.append(post)
-                if not ok:
-                    continue
-
-                pre_candidates.append(
-                    (int(sf), int(st), from_shifted, to_shifted, pre_lanes, post_lanes)
-                )
-
-        # Faz-2 (kesisim sonrasi): lane baglanti/core
-        for sf, st, from_shifted, to_shifted, pre_lanes, post_lanes in pre_candidates:
-            # intersecting durumda da baglama asamasi non-intersecting ile ayni
-            # eksen baglanti mantiginda denenir.
-            from_to_lines = _build_three_lines(from_shifted, tdx, tdy)
-            to_from_lines = _build_three_lines(to_shifted, fdx, fdy)
-            if len(from_to_lines) != 3 or len(to_from_lines) != 3:
-                continue
-            if any(any(_blocked(c) for c in ln) for ln in from_to_lines):
-                continue
-            if any(any(_blocked(c) for c in ln) for ln in to_from_lines):
-                continue
-
-            meet_cells = []
-            ok = True
-            for i in range(3):
-                meet = _first_intersection(from_to_lines[i], to_from_lines[i])
-                if meet is None:
-                    ok = False
-                    break
-                meet_cells.append(meet)
-            if not ok:
-                continue
-
-            carry_lanes = []
-            for i in range(3):
-                meet = meet_cells[i]
-                a = from_to_lines[i]
-                b = to_from_lines[i]
-                ia = a.index(meet)
-                ib = b.index(meet)
-                core = list(a[: ia + 1]) + list(reversed(b[:ib]))
-                if any(_blocked(c) for c in core):
-                    carry_lanes = []
-                    break
-                lane = list(pre_lanes[i]) + list(core) + list(post_lanes[i])
-                carry_lanes.append(_compress_lane(lane))
-            if len(carry_lanes) != 3:
-                continue
-
-            return {
-                "carry_parallel_lanes": carry_lanes,
-                "carry_main_route": list(carry_lanes[1]),
-                "scenario": "intersecting",
-                "from_access_line": from_access_line,
-                "to_access_line": to_access_line,
-                "from_front_3": from_front_3,
-                "to_front_3": to_front_3,
-                "is_intersecting": True,
-                "intersection_cell": intersection_cell,
-                "from_shift": int(sf),
-                "to_shift": int(st),
-                "from_shifted_front_3": from_shifted,
-                "to_shifted_front_3": to_shifted,
-                "from_to_lines": from_to_lines,
-                "to_from_lines": to_from_lines,
-            }
-
-        return None
-
-    # Senaryo-2: Hatlar kesismiyor.
-    # Dalga denemesi: d turunda sf+st=d olacak sekilde kombinasyonlar.
     if len(from_front_3) < 3 or len(to_front_3) < 3:
         return None
 
@@ -550,13 +358,10 @@ def corner(
             to_shifted = _shift_points(to_front_3, tdx, tdy, st)
             if len(from_shifted) != 3 or len(to_shifted) != 3:
                 continue
-            # 3'lu bantlardan biri bloktayse bu deneme elenir.
             if any(_blocked(c) for c in from_shifted) or any(_blocked(c) for c in to_shifted):
                 continue
 
-            # From tarafi: from'un ilk 3 alanindan to yonune dogru 3 lane.
             from_to_lines = _build_three_lines(from_shifted, tdx, tdy)
-            # To tarafi: to'nun ilk 3 alanindan from yonune dogru 3 lane.
             to_from_lines = _build_three_lines(to_shifted, fdx, fdy)
             if len(from_to_lines) != 3 or len(to_from_lines) != 3:
                 continue
@@ -638,7 +443,6 @@ def opposite(
     if (fdx, fdy) == (0, 0) or (tdx, tdy) == (0, 0):
         return None
 
-    # Opposite case: yönler birbirinin tersi olmalı.
     if int(fdx) != -int(tdx) or int(fdy) != -int(tdy):
         return None
 
@@ -657,10 +461,7 @@ def opposite(
     def _front_3(start, dx, dy, seed_shift=0):
         out = []
         for k in (1, 2, 3):
-            c = (
-                int(start[0]) + int(dx) * (int(seed_shift) + k),
-                int(start[1]) + int(dy) * (int(seed_shift) + k),
-            )
+            c = (int(start[0]) + int(dx) * (int(seed_shift) + k), int(start[1]) + int(dy) * (int(seed_shift) + k))
             if _inside(c):
                 out.append(c)
         return out
@@ -802,33 +603,22 @@ def opposite(
     from_front_3_initial = _front_3(from_cell, fdx, fdy, 0)
     to_front_3_initial = _front_3(to_cell, tdx, tdy, 0)
 
-    # N/S: dik şerit (x sabit, y tam aralık)
     if int(fdx) == 0:
         x_ref = int(round((int(from_cell[0]) + int(to_cell[0])) / 2.0))
         scan_order = _nearest_axis_order(w, x_ref)
         for x in scan_order:
             if all(not _blocked(x, y) for y in range(0, l)):
                 strip = [(int(x), int(y)) for y in range(0, l)]
-                from_front_3, from_history, from_last_side = _align_to_strip(
-                    from_cell, fdx, fdy, int(x), "vertical", True
-                )
+                from_front_3, from_history, from_last_side = _align_to_strip(from_cell, fdx, fdy, int(x), "vertical", True)
                 if from_front_3 is None:
                     continue
-                to_front_3, to_history, _ = _align_to_strip(
-                    to_cell, tdx, tdy, int(x), "vertical", False
-                )
+                to_front_3, to_history, _ = _align_to_strip(to_cell, tdx, tdy, int(x), "vertical", False)
                 if to_front_3 is None:
                     continue
                 to_by_y = {int(c[1]): c for c in to_front_3}
                 from_traces = []
                 for i in range(3):
-                    tr = _lane_trace_from_history(
-                        (int(from_front_3_initial[i][0]), int(from_front_3_initial[i][1])),
-                        from_history,
-                        int(fdx),
-                        int(fdy),
-                        i,
-                    )
+                    tr = _lane_trace_from_history((int(from_front_3_initial[i][0]), int(from_front_3_initial[i][1])), from_history, int(fdx), int(fdy), i)
                     if not tr:
                         from_traces = []
                         break
@@ -838,13 +628,7 @@ def opposite(
                 to_traces_by_y = {}
                 ok_to_traces = True
                 for i in range(3):
-                    tr = _lane_trace_from_history(
-                        (int(to_front_3_initial[i][0]), int(to_front_3_initial[i][1])),
-                        to_history,
-                        int(tdx),
-                        int(tdy),
-                        i,
-                    )
+                    tr = _lane_trace_from_history((int(to_front_3_initial[i][0]), int(to_front_3_initial[i][1])), to_history, int(tdx), int(tdy), i)
                     if not tr:
                         ok_to_traces = False
                         break
@@ -886,32 +670,21 @@ def opposite(
                 }
         return None
 
-    # E/W: yatay şerit (y sabit, x tam aralık)
     y_ref = int(round((int(from_cell[1]) + int(to_cell[1])) / 2.0))
     scan_order = _nearest_axis_order(l, y_ref)
     for y in scan_order:
         if all(not _blocked(x, y) for x in range(0, w)):
             strip = [(int(x), int(y)) for x in range(0, w)]
-            from_front_3, from_history, from_last_side = _align_to_strip(
-                from_cell, fdx, fdy, int(y), "horizontal", True
-            )
+            from_front_3, from_history, from_last_side = _align_to_strip(from_cell, fdx, fdy, int(y), "horizontal", True)
             if from_front_3 is None:
                 continue
-            to_front_3, to_history, _ = _align_to_strip(
-                to_cell, tdx, tdy, int(y), "horizontal", False
-            )
+            to_front_3, to_history, _ = _align_to_strip(to_cell, tdx, tdy, int(y), "horizontal", False)
             if to_front_3 is None:
                 continue
             to_by_x = {int(c[0]): c for c in to_front_3}
             from_traces = []
             for i in range(3):
-                tr = _lane_trace_from_history(
-                    (int(from_front_3_initial[i][0]), int(from_front_3_initial[i][1])),
-                    from_history,
-                    int(fdx),
-                    int(fdy),
-                    i,
-                )
+                tr = _lane_trace_from_history((int(from_front_3_initial[i][0]), int(from_front_3_initial[i][1])), from_history, int(fdx), int(fdy), i)
                 if not tr:
                     from_traces = []
                     break
@@ -921,13 +694,7 @@ def opposite(
             to_traces_by_x = {}
             ok_to_traces = True
             for i in range(3):
-                tr = _lane_trace_from_history(
-                    (int(to_front_3_initial[i][0]), int(to_front_3_initial[i][1])),
-                    to_history,
-                    int(tdx),
-                    int(tdy),
-                    i,
-                )
+                tr = _lane_trace_from_history((int(to_front_3_initial[i][0]), int(to_front_3_initial[i][1])), to_history, int(tdx), int(tdy), i)
                 if not tr:
                     ok_to_traces = False
                     break
@@ -968,4 +735,3 @@ def opposite(
                 "from_approach_side": from_last_side,
             }
     return None
-

@@ -8,19 +8,8 @@ version = "0.1.0"
 description = "Parallel IDA* solver written in C++ with pybind11"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { file = "LICENSE" }
 authors = [
     { name = "Deniz Efe Yildiz" }
-]
-keywords = ["warehouse", "ida-star", "pathfinding", "optimization", "upmp"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: C++",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Topic :: Scientific/Engineering",
 ]
 dependencies = [
     "ortools>=9.12,<10",

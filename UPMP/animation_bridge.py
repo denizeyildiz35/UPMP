@@ -1,45 +1,34 @@
-"""RouteAnimation icin ortak kopru helper'lari.
-
-Hem ana uygulama (`MainWindow`) hem standalone tool (`pathfinding_deneme`)
-ayni eslesme + plan donusum mantigini kullansin diye burada toplandi.
-"""
+"""RouteAnimation icin ortak kopru helper'lari."""
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
-# TimeParamsDialog anahtarlari -> RouteAnimation.time_parameters anahtarlari.
-# Dishli carki diyalogu (MainWindow.TimeParamsDialog._DEFAULTS) ile birebir uyumlu.
 _TIME_PARAM_MAP: Dict[str, str] = {
-    "duz":             "time_per_grid_straight",
-    "strafe":          "time_per_grid_strafe",
-    "donus(90)":       "time_turn_90",
+    "duz": "time_per_grid_straight",
+    "strafe": "time_per_grid_strafe",
+    "donus(90)": "time_turn_90",
     "bos_catal_cikis": "time_fork_up_empty",
-    "bos_catal_inis":  "time_fork_down_empty",
-    "catal_cikis":     "time_fork_up_loaded",
-    "catal_inis":      "time_fork_down_loaded",
-    "pick":            "time_pick_insert",
-    "place":           "time_place_release",
+    "bos_catal_inis": "time_fork_down_empty",
+    "catal_cikis": "time_fork_up_loaded",
+    "catal_inis": "time_fork_down_loaded",
+    "pick": "time_pick_insert",
+    "place": "time_place_release",
 }
 
-# RouteAnimation kendi default'lari (animation.py icindekiyle ayni).
 _ANIM_DEFAULTS: Dict[str, float] = {
-    "duz":             1.0,
-    "strafe":          1.5,
-    "donus(90)":       2.0,
+    "duz": 1.0,
+    "strafe": 1.5,
+    "donus(90)": 2.0,
     "bos_catal_cikis": 0.5,
-    "bos_catal_inis":  0.4,
-    "catal_cikis":     0.8,
-    "catal_inis":      0.6,
-    "pick":            2.0,
-    "place":           2.0,
+    "bos_catal_inis": 0.4,
+    "catal_cikis": 0.8,
+    "catal_inis": 0.6,
+    "pick": 2.0,
+    "place": 2.0,
 }
 
 
 def apply_time_params(anim, time_params: Optional[Dict[str, Any]]) -> None:
-    """`TimeParamsDialog`'tan gelen dict'i `RouteAnimation.time_parameters`'a esler.
-
-    Eksik anahtarlar default ile doldurulur. `anim` None olsa `None` doner.
-    """
     if anim is None:
         return
     tp = dict(time_params or {})
@@ -132,11 +121,7 @@ def _classify_route_relation(from_access_dir: str, to_access_dir: str) -> str:
 def _route_case_handlers() -> Dict[str, object]:
     from .route_cases import corner, opposite, same
 
-    return {
-        "same": same,
-        "corner": corner,
-        "opposite": opposite,
-    }
+    return {"same": same, "corner": corner, "opposite": opposite}
 
 
 def _normalize_route_case_output(raw_case) -> Dict:
@@ -193,12 +178,6 @@ def build_step_plans_from_playback(
     move_paths: Sequence,
     states: Optional[Sequence] = None,
 ) -> List[Dict]:
-    """Playback verilerini `RouteAnimation` plan semasina cevirir.
-
-    `move_paths[i]` = algoritmanin urettigi route metadata dict'i.
-    `moves[i]` = `(sw, sl, tw, tl, item)` tuple'i.
-    `states[i]` = i. adim oncesi grid (yukseklik hesabi icin).
-    """
     out: List[Dict] = []
     for i, mp in enumerate(move_paths or []):
         if not isinstance(mp, dict):
@@ -242,28 +221,28 @@ def build_step_plans_from_playback(
         carry_lanes = _filter_stepwise_lanes(mp.get("rays", []) or [])
 
         out.append({
-            "relation":             mp.get("relation"),
-            "pick_direction":       mp.get("pick_direction"),
-            "place_direction":      mp.get("place_direction"),
-            "source":               src,
-            "target":               dst,
-            "item":                 item,
-            "pick_height":          pick_h,
-            "place_height":         place_h,
-            "pick_level":           int(pick_level),
-            "place_level":          int(place_level),
-            "ok":                   bool(approach_main or carry_main),
+            "relation": mp.get("relation"),
+            "pick_direction": mp.get("pick_direction"),
+            "place_direction": mp.get("place_direction"),
+            "source": src,
+            "target": dst,
+            "item": item,
+            "pick_height": pick_h,
+            "place_height": place_h,
+            "pick_level": int(pick_level),
+            "place_level": int(place_level),
+            "ok": bool(approach_main or carry_main),
             "approach_parallel_lanes": list(approach_lanes or []),
-            "approach_main_route":  list(approach_main or []),
-            "turn_pivot":           mp.get("turn_pivot"),
-            "turn_side":            mp.get("turn_side"),
-            "from_approach_side":   mp.get("from_approach_side"),
-            "approach_turn_pivot":  mp.get("approach_turn_pivot"),
-            "approach_turn_side":   mp.get("approach_turn_side"),
-            "approach_from_dir":    mp.get("approach_from_dir"),
-            "approach_relation":    mp.get("approach_relation"),
+            "approach_main_route": list(approach_main or []),
+            "turn_pivot": mp.get("turn_pivot"),
+            "turn_side": mp.get("turn_side"),
+            "from_approach_side": mp.get("from_approach_side"),
+            "approach_turn_pivot": mp.get("approach_turn_pivot"),
+            "approach_turn_side": mp.get("approach_turn_side"),
+            "approach_from_dir": mp.get("approach_from_dir"),
+            "approach_relation": mp.get("approach_relation"),
             "carry_parallel_lanes": list(carry_lanes or []),
-            "carry_main_route":     list(carry_main or []),
+            "carry_main_route": list(carry_main or []),
         })
     return out
 
@@ -318,7 +297,6 @@ def rebuild_step_plans_like_pathfinding_deneme(
     move_paths: Optional[Sequence] = None,
     move_directions: Optional[Sequence] = None,
 ) -> List[Dict]:
-    """pathfinding_deneme `_build_step_path_plans` ile ayni route_cases planini uretir."""
     if not moves or not states or len(states) < 2:
         return []
 
@@ -584,7 +562,6 @@ def build_anim_moves_from_plans(plans: Sequence[Dict]) -> List[Dict]:
 
 
 def build_route_overlay_from_plan(plan: Dict) -> Dict:
-    """pathfinding_deneme top-view ile ayni main route + guide lane kaynaklarini verir."""
     if not isinstance(plan, dict):
         return {}
     return {
@@ -602,7 +579,6 @@ def build_route_overlay_from_plan(plan: Dict) -> Dict:
 
 
 def calculate_plan_time_from_animation(plan: Dict, time_params: Optional[Dict[str, Any]] = None) -> Dict:
-    """RouteAnimation'in talimat surelerini kullanarak tek plan suresi hesaplar."""
     if not isinstance(plan, dict):
         return {"total_time": 0.0, "components": {}, "model": {"note": "empty plan"}}
 
@@ -698,7 +674,6 @@ def build_anim_moves(
     playback_moves: Sequence,
     move_paths: Sequence,
 ) -> List[Dict]:
-    """`playback_moves` (tuple listesi) -> RouteAnimation.run()'a verilecek dict listesi."""
     out: List[Dict] = []
     for i, mv in enumerate(playback_moves or []):
         try:
@@ -711,25 +686,18 @@ def build_anim_moves(
             else {}
         )
         out.append({
-            "source":          (int(sw), int(sl)),
-            "target":          (int(tw), int(tl)),
-            "item":            int(item),
-            "pick_direction":  str(mp.get("pick_direction", "N") or "N"),
+            "source": (int(sw), int(sl)),
+            "target": (int(tw), int(tl)),
+            "item": int(item),
+            "pick_direction": str(mp.get("pick_direction", "N") or "N"),
             "place_direction": str(mp.get("place_direction", "N") or "N"),
-            "pick_height":     int(mp.get("pick_height", 0) or 0),
-            "place_height":    int(mp.get("place_height", 0) or 0),
+            "pick_height": int(mp.get("pick_height", 0) or 0),
+            "place_height": int(mp.get("place_height", 0) or 0),
         })
     return out
 
 
 def collect_block_actors_from_scene(scene, coords: Optional[Dict[str, float]] = None) -> Dict[Tuple[int, int, int], object]:
-    """Sahnedeki blok actor'larini grid koordinatina indexler.
-
-    Sahne dunya koordinatinda; blok pozisyonu `(x1 + gx + 0.5, y1 + gy + 0.5, gz + 0.5)`.
-    Coords'ta `x2`/`y2` da varsa SADECE rect-ici aktorler index'lenir; aksi
-    halde baska depolardaki aktorler yanlis key uretip pickup'i bozar.
-    Donen dict, `RouteAnimation` `_block_actors`'inin bekledigi sema.
-    """
     out: Dict[Tuple[int, int, int], object] = {}
     coords = coords or {}
     try:
@@ -739,7 +707,6 @@ def collect_block_actors_from_scene(scene, coords: Optional[Dict[str, float]] = 
         x1 = 0.0
         y1 = 0.0
 
-    # Rect filtresi (opsiyonel).
     has_rect = "x2" in coords and "y2" in coords
     if has_rect:
         try:
@@ -755,11 +722,8 @@ def collect_block_actors_from_scene(scene, coords: Optional[Dict[str, float]] = 
             px, py, pz = b.GetPosition()
         except Exception:
             continue
-        if has_rect:
-            # Kucuk tolerans: blok merkezleri (gx+0.5,gy+0.5) -> sinirda
-            # round-off ile dusup-kalmasin diye 1e-3 esik.
-            if not (xmin - 1e-3 <= px <= xmax + 1e-3 and ymin - 1e-3 <= py <= ymax + 1e-3):
-                continue
+        if has_rect and not (xmin - 1e-3 <= px <= xmax + 1e-3 and ymin - 1e-3 <= py <= ymax + 1e-3):
+            continue
         gx = int(round(px - x1 - 0.5))
         gy = int(round(py - y1 - 0.5))
         gz = int(round(pz - 0.5))
