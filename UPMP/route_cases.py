@@ -69,8 +69,6 @@ def validate_route(route, node_frozen):
     return {"ok": True, "reason": "ok", "at": None, "index": None}
 
 
-# Route case implementations are copied from Engine to preserve behavior.
-# They are intentionally kept as-is to avoid changing animation/path output.
 def same(vehicle_cell: Optional[Cell], from_cell: Cell, to_cell: Cell, from_access_dir: str, to_access_dir: str, node_frozen=None, ignore_to_block_for_egress: bool = False):
     _ = (vehicle_cell, ignore_to_block_for_egress)
     if not node_frozen:

@@ -47,8 +47,8 @@ def Animation(ida_result=None, depo=None, lanes=None, lane_matrix=None, **kwargs
         from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
         from vtkmodules.vtkInteractionStyle import vtkInteractorStyleTrackballCamera
         from vtkmodules.vtkRenderingCore import vtkRenderer
-        import vtkmodules.vtkInteractionStyle  # noqa: F401
-        import vtkmodules.vtkRenderingOpenGL2  # noqa: F401
+        import vtkmodules.vtkInteractionStyle
+        import vtkmodules.vtkRenderingOpenGL2
     except ImportError as exc:
         raise ImportError(
             "Animation requires optional GUI dependencies. "

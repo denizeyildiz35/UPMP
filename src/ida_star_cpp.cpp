@@ -1,6 +1,4 @@
-// Python'dan C++ kütüphanesi olarak çağırabilmek için pybind11 ana başlığı
 #include <pybind11/pybind11.h>
-// Python listelerini C++ vektörlerine otomatik dönüştüren pybind11 eklentisi
 #include <pybind11/stl.h>
 
 #include <iostream>
@@ -14,13 +12,9 @@
 #include <random>
 #include <limits>
 #include <algorithm>
-// Paralel IDA* için atomik paylaşılan durum
 #include <atomic>
-// Tek merkezi iş kuyruğu
 #include <deque>
-// Kuyruğu ve çözüm yolunu korumak için
 #include <mutex>
-// Worker thread'leri
 #include <thread>
 
 namespace py = pybind11;
@@ -30,11 +24,8 @@ constexpr int MAX_LEN      = 20;
 constexpr int MAX_DATA     = MAX_LANES * MAX_LEN;
 constexpr int MAX_PRIORITY = 6;
 
-// DFS dönüş sinyalleri
 constexpr double IDA_FOUND = -1.0;
 constexpr double IDA_STOP  = -2.0;
-
-// ── Veri yapıları ─────────────────────────────────────────────────────────
 
 struct Layout {
     int num_lanes;
@@ -116,8 +107,6 @@ struct MoveRecord {
     double f;
     double time_sec;
 };
-
-// ── Yardımcı fonksiyonlar (tek-thread versiyonla aynı) ──────────────────────
 
 std::pair<Layout, State> from_python(const std::vector<std::vector<int>>& lanes) {
     Layout L;
@@ -437,9 +426,6 @@ std::optional<Node> make_one_successor(const Node& parent, const Layout& L,
     return succ;
 }
 
-// ── DSG* tiebreak ──────────────────────────────────────────────────────────
-
-// Sıralama için küçük aday struct'ı (tam Node ~7.5KB yerine ~36 byte)
 struct CandMove {
     int     src_lane;
     int     dst_lane;
@@ -449,9 +435,6 @@ struct CandMove {
     int     g;
 };
 
-// Parent → child geçişindeki ağırlıklı demand-surplus değişimi.
-// weight = 10^(p-1): yüksek öncelik üstel olarak daha ağır basar.
-// int64_t: uzun aramalarda 32-bit taşar.
 int64_t compute_dsg_delta(const Node& parent, const Node& child) {
     int64_t total = 0;
     int cum_pd = 0, cum_ps = 0;
@@ -471,9 +454,6 @@ int64_t compute_dsg_delta(const Node& parent, const Node& child) {
     return total;
 }
 
-// Ebeveynin tüm geçerli haleflerini aday liste olarak üret.
-// use_dsg açıksa her aday için dsg_score hesaplanır ve eşit-f durumunda
-// daha iyi dsg_score'lu aday tercih edilir.
 std::vector<CandMove> generate_candidates(const Node& parent, const Layout& L,
                                           int64_t parent_dsg_score, bool use_dsg)
 {
@@ -489,7 +469,6 @@ std::vector<CandMove> generate_candidates(const Node& parent, const Layout& L,
             auto opt = make_one_successor(parent, L, src_lane, dst_lane);
             if (!opt) continue;
 
-            // DSG* skoru: h iyileştiyse skoru sıfırla, yoksa biriktir
             int64_t dsg_score = 0;
             if (use_dsg) {
                 int64_t delta      = compute_dsg_delta(parent, *opt);
@@ -497,7 +476,6 @@ std::vector<CandMove> generate_candidates(const Node& parent, const Layout& L,
                 dsg_score = h_improved ? delta : (parent_dsg_score + delta);
             }
 
-            // Aynı hash için en iyi (f, dsg_score) tut, Node'u hemen serbest bırak
             auto it = best_per_hash.find(opt->hash);
             bool is_better = (it == best_per_hash.end()) ||
                              (opt->f < it->second.f) ||
@@ -515,7 +493,6 @@ std::vector<CandMove> generate_candidates(const Node& parent, const Layout& L,
     return result;
 }
 
-// Adayları seçilen moda göre sırala
 void sort_candidates(std::vector<CandMove>& cands, bool use_dsg) {
     if (use_dsg) {
         std::sort(cands.begin(), cands.end(),
@@ -544,23 +521,18 @@ MoveRecord make_move_record(const Node& parent, const Node& child, const Layout&
     return mr;
 }
 
-// ── Paralel altyapı (sade) ──────────────────────────────────────────────────
-
-// Bir worker'ın kendi sayaçları (thread-local, yarış yok)
 struct ThreadStats {
     long long nodes_expanded = 0;
     long long last_log_at    = 0;
     double    min_h_seen     = std::numeric_limits<double>::infinity();
 };
 
-// Kuyruktaki tek iş birimi: kök çocuğu + ona kadarki yol öneki + başlangıç dsg skoru
 struct WorkItem {
     Node                    node;
     std::vector<MoveRecord> path_prefix;
-    int64_t                 init_dsg = 0;   // bu kök çocuğunun biriken DSG skoru
+    int64_t                 init_dsg = 0;
 };
 
-// Tek merkezi iş kuyruğu, kendi mutex'iyle
 struct WorkQueue {
     std::deque<WorkItem> items;
     std::mutex           mutex;
@@ -587,11 +559,8 @@ void atomic_min_double(std::atomic<double>& target, double value)
                                          std::memory_order_relaxed)) {}
 }
 
-// Kök çocuklarını üret (her iterasyonda aynı, bir kez hesaplanıp kopyalanır).
-// use_dsg açıksa her çocuğun başlangıç dsg skoru WorkItem'a yazılır.
 std::deque<WorkItem> build_root_work_items(const Node& root, const Layout& L, bool use_dsg)
 {
-    // Kök için biriken skor 0
     std::vector<CandMove> cands = generate_candidates(root, L, 0, use_dsg);
     sort_candidates(cands, use_dsg);
 
@@ -602,16 +571,12 @@ std::deque<WorkItem> build_root_work_items(const Node& root, const Layout& L, bo
         WorkItem item;
         item.node = std::move(*opt_child);
         item.path_prefix.push_back(make_move_record(root, item.node, L));
-        item.init_dsg = cand.dsg_score;   // child'ın biriken skoru
+        item.init_dsg = cand.dsg_score;
         items.push_back(std::move(item));
     }
     return items;
 }
 
-// ── IDA* derinlik-öncelikli arama (DFS) ─────────────────────────────────────
-// Her worker kendi call stack'iyle bağımsız çağırır.
-// accumulated_dsg: bu düğüme kadar biriken DSG skoru (use_dsg açıkken anlamlı)
-// Dönüş: IDA_FOUND | IDA_STOP | +inf (bu dal tükendi)
 double dfs(
     const Node&                                    node,
     const Layout&                                  L,
@@ -670,7 +635,6 @@ double dfs(
         Node s = std::move(*opt_succ);
 
         path.push_back(make_move_record(node, s, L));
-        // Çocuğun biriken skoru cand.dsg_score; bir alt seviyeye onu taşı
         double result = dfs(s, L, threshold, min_exceeded, found, stop_requested,
                             iteration, path, stats, cand.dsg_score, use_dsg,
                             t_start, log, check_stop);
@@ -681,8 +645,6 @@ double dfs(
 
     return std::numeric_limits<double>::infinity();
 }
-
-// ── Python'dan çağrılan ana fonksiyon (fork-join modeli) ────────────────────
 
 py::object ida_star(const std::vector<std::vector<int>>& lanes,
                     py::object log_fn           = py::none(),
@@ -728,7 +690,6 @@ py::object ida_star(const std::vector<std::vector<int>>& lanes,
 
     auto [L, root_state] = from_python(lanes);
 
-    // ── Kök düğümü kur ──────────────────────────────────────────────────────
     Node root;
     root.state    = root_state;
     root.hash     = g_zobrist.full_hash(root_state, L);
@@ -783,12 +744,10 @@ py::object ida_star(const std::vector<std::vector<int>>& lanes,
     if (root.total_blocking == 0)
         return build_result({}, 0.0, 0, 0);
 
-    // ── Worker sayısı ───────────────────────────────────────────────────────
     unsigned hw = std::thread::hardware_concurrency();
     int worker_count = num_threads > 0 ? num_threads : (hw > 0 ? (int)hw : 1);
     worker_count = std::max(1, worker_count);
 
-    // ── Paylaşılan durum ────────────────────────────────────────────────────
     std::atomic<double> threshold(root.h);
     std::atomic<double> min_exceeded(std::numeric_limits<double>::infinity());
     std::atomic<bool>   found(false);
@@ -809,7 +768,6 @@ py::object ida_star(const std::vector<std::vector<int>>& lanes,
     int       iteration   = 0;
     long long total_nodes = 0;
 
-    // ── Ana döngü: her tur tam bir IDA* iterasyonu (fork → join) ────────────
     while (true) {
         if (check_stop() || check_stop_get_best()) {
             log("IDA* durduruldu, None donuluyor.\n");
@@ -829,7 +787,6 @@ py::object ida_star(const std::vector<std::vector<int>>& lanes,
             + " | esik=" + std::to_string(threshold.load())
             + " | " + std::to_string(worker_count) + " thread aciliyor\n");
 
-        // ── FORK: worker'ları başlat ────────────────────────────────────────
         std::vector<std::thread> workers;
         workers.reserve(worker_count);
         for (int id = 0; id < worker_count; ++id) {
@@ -872,13 +829,11 @@ py::object ida_star(const std::vector<std::vector<int>>& lanes,
             });
         }
 
-        // ── JOIN: tüm worker'lar bitene kadar bekle ─────────────────────────
         for (auto& w : workers) w.join();
 
         total_nodes = 0;
         for (const auto& st : stats) total_nodes += st.nodes_expanded;
 
-        // ── İterasyon sonucu değerlendir ────────────────────────────────────
         if (stop_requested.load(std::memory_order_acquire)) {
             log("IDA* durduruldu (dfs icinde), None donuluyor.\n");
             py::gil_scoped_acquire gil;
@@ -908,8 +863,6 @@ py::object ida_star(const std::vector<std::vector<int>>& lanes,
         threshold.store(next, std::memory_order_release);
     }
 }
-
-// ── Pybind11 modülü ──────────────────────────────────────────────────────────
 
 PYBIND11_MODULE(ida_star_cpp, m) {
     m.def("ida_star_cpp", &ida_star,
