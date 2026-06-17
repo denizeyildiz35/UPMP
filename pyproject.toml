@@ -4,13 +4,15 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "UPMP"
-version = "0.1.1"
+version = "0.1.3"
 description = "Parallel IDA* solver written in C++ with pybind11"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
     { name = "Deniz Efe Yildiz" }
 ]
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "ortools>=9.12,<10",
 ]
